@@ -16,6 +16,26 @@ class MySqlGrammar extends Grammar
      */
     protected $operators = ['sounds like'];
 
+    protected function compileFrom(Builder $query, $table)
+    {
+        if (!str_contains($table, '.') && !str_starts_with($table, ':')) $table = "{$query->connection->getDatabaseName()}.{$table}";
+        return 'from ' . $this->wrapTable($table);
+    }
+
+    protected function compileJoins(Builder $query, $joins)
+    {
+        return collect($joins)->map(function ($join) use ($query) {
+            if (!str_contains($join->table, '.') && !str_starts_with($join->table, ':')) $table = "{$join->connection->getDatabaseName()}.{$join->table}";
+            else $table = $this->wrapTable($join->table);
+
+            $nestedJoins = is_null($join->joins) ? '' : ' ' . $this->compileJoins($query, $join->joins);
+
+            $tableAndNestedJoins = is_null($join->joins) ? $table : '(' . $table . $nestedJoins . ')';
+
+            return trim("{$join->type} join {$tableAndNestedJoins} {$this->compileWheres($join)}");
+        })->implode(' ');
+    }
+
     /**
      * Compile a "where like" clause.
      *
